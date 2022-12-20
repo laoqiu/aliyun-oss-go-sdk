@@ -103,6 +103,22 @@ func (conn Conn) Do(method, bucketName, objectName string, params map[string]int
 	return conn.doRequest(method, uri, resource, headers, data, initCRC, listener)
 }
 
+func (conn Conn) Request(method, bucketName, objectName string, params map[string]interface{}, headers map[string]string,
+	data io.Reader, initCRC uint64, listener ProgressListener) (*http.Request, error) {
+	urlParams := conn.getURLParams(params)
+	subResource := conn.getSubResource(params)
+	uri := conn.url.getURL(bucketName, objectName, urlParams)
+
+	resource := ""
+	if conn.config.AuthVersion != AuthV4 {
+		resource = conn.getResource(bucketName, objectName, subResource)
+	} else {
+		resource = conn.getResourceV4(bucketName, objectName, subResource)
+	}
+
+	return conn.makeRequest(method, uri, resource, headers, data, initCRC, listener)
+}
+
 // DoURL sends the request with signed URL and returns the response result.
 func (conn Conn) DoURL(method HTTPMethod, signedURL string, headers map[string]string,
 	data io.Reader, initCRC uint64, listener ProgressListener) (*Response, error) {
@@ -278,6 +294,61 @@ func (conn Conn) getResourceV4(bucketName, objectName, subResource string) strin
 		return fmt.Sprintf("/%s/%s%s", bucketName, objectName, subResource)
 	}
 	return fmt.Sprintf("/%s/%s", bucketName, subResource)
+}
+
+func (conn Conn) makeRequest(method string, uri *url.URL, canonicalizedResource string, headers map[string]string,
+	data io.Reader, initCRC uint64, listener ProgressListener) (*http.Request, error) {
+
+	method = strings.ToUpper(method)
+	req := &http.Request{
+		Method:     method,
+		URL:        uri,
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		Header:     make(http.Header),
+		Host:       uri.Host,
+	}
+
+	req.Header.Set(HTTPHeaderContentLength, headers["csize"])
+	req.Header.Set(HTTPHeaderContentMD5, headers["cmd5"])
+	// tracker := &readerTracker{completedBytes: 0}
+	// fd, _ := conn.handleBody(req, data, initCRC, listener, tracker)
+	// if fd != nil {
+	// 	defer func() {
+	// 		fd.Close()
+	// 		os.Remove(fd.Name())
+	// 	}()
+	// }
+
+	if conn.config.IsAuthProxy {
+		auth := conn.config.ProxyUser + ":" + conn.config.ProxyPassword
+		basic := "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
+		req.Header.Set("Proxy-Authorization", basic)
+	}
+
+	stNow := time.Now().UTC()
+	req.Header.Set(HTTPHeaderDate, stNow.Format(http.TimeFormat))
+	req.Header.Set(HTTPHeaderHost, req.Host)
+	req.Header.Set(HTTPHeaderUserAgent, conn.config.UserAgent)
+
+	if conn.config.AuthVersion == AuthV4 {
+		req.Header.Set(HttpHeaderOssContentSha256, DefaultContentSha256)
+	}
+
+	akIf := conn.config.GetCredentials()
+	if akIf.GetSecurityToken() != "" {
+		req.Header.Set(HTTPHeaderOssSecurityToken, akIf.GetSecurityToken())
+	}
+
+	if headers != nil {
+		for k, v := range headers {
+			req.Header.Set(k, v)
+		}
+	}
+
+	conn.signHeader(req, canonicalizedResource)
+	return req, nil
 }
 
 func (conn Conn) doRequest(method string, uri *url.URL, canonicalizedResource string, headers map[string]string,

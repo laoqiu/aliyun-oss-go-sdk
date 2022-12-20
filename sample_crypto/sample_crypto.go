@@ -7,8 +7,8 @@ import (
 	"os"
 
 	kms "github.com/aliyun/alibaba-cloud-sdk-go/services/kms"
-	"github.com/aliyun/aliyun-oss-go-sdk/oss"
-	"github.com/aliyun/aliyun-oss-go-sdk/oss/crypto"
+	"github.com/laoqiu/aliyun-oss-go-sdk/oss"
+	osscrypto "github.com/laoqiu/aliyun-oss-go-sdk/oss/crypto"
 )
 
 func SampleRsaNormalObject() {

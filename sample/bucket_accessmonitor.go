@@ -2,7 +2,8 @@ package sample
 
 import (
 	"fmt"
-	"github.com/aliyun/aliyun-oss-go-sdk/oss"
+
+	"github.com/laoqiu/aliyun-oss-go-sdk/oss"
 )
 
 // BucketAccessMonitorSample  how to set, get the bucket access monitor.

@@ -61,6 +61,7 @@ type UploadPartRequest struct {
 	Reader     io.Reader
 	PartSize   int64
 	PartNumber int
+	PartMD5    string
 }
 
 // UploadPartResult is the result of DoUploadPart
